@@ -142,6 +142,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isTestingAllDiagnostics = MutableStateFlow(false)
     val isTestingAllDiagnostics: StateFlow<Boolean> = _isTestingAllDiagnostics.asStateFlow()
 
+    private val _currentTestingPanelId = MutableStateFlow<String?>(null)
+    val currentTestingPanelId: StateFlow<String?> = _currentTestingPanelId.asStateFlow()
+
     private val _showAccountSettings = MutableStateFlow(false)
     val showAccountSettings: StateFlow<Boolean> = _showAccountSettings.asStateFlow()
 
@@ -730,35 +733,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (panels.isEmpty()) {
             _allPanelsDiagnostics.value = emptyMap()
             _isTestingAllDiagnostics.value = false
+            _currentTestingPanelId.value = null
             return
         }
 
         viewModelScope.launch {
             _isTestingAllDiagnostics.value = true
-            val initial = panels.associate { panel ->
+            // Initialize all panels as queued/waiting
+            val queuedMap = panels.associate { panel ->
                 panel.id to ConnectionDiagnostic(
+                    panelId = panel.id,
+                    panelUrl = panel.panelUrl,
+                    urlValid = true,
+                    isTesting = false
+                )
+            }.toMutableMap()
+            _allPanelsDiagnostics.value = queuedMap.toMap()
+
+            // Run through panels one by one sequentially
+            for ((index, panel) in panels.withIndex()) {
+                _currentTestingPanelId.value = panel.id
+                queuedMap[panel.id] = ConnectionDiagnostic(
                     panelId = panel.id,
                     panelUrl = panel.panelUrl,
                     urlValid = true,
                     isTesting = true
                 )
-            }
-            _allPanelsDiagnostics.value = initial
-            _diagnosticState.value = initial.values.firstOrNull()
+                _allPanelsDiagnostics.value = queuedMap.toMap()
+                _diagnosticState.value = queuedMap[panel.id]
 
-            panels.map { panel ->
-                async {
-                    val result = repository.runDiagnostics(panel.panelUrl, panel.apiToken, panel.id)
-                    _allPanelsDiagnostics.update { current ->
-                        current + (panel.id to result)
-                    }
-                    if (_diagnosticState.value?.panelId == panel.id || _diagnosticState.value == null) {
-                        _diagnosticState.value = result
-                    }
-                    result
+                // Visual pacing pause to highlight active testing for the current panel
+                delay(180L)
+
+                val result = repository.runDiagnostics(panel.panelUrl, panel.apiToken, panel.id)
+                queuedMap[panel.id] = result
+                _allPanelsDiagnostics.value = queuedMap.toMap()
+                _diagnosticState.value = result
+
+                // Cadence delay before advancing to next panel
+                if (index < panels.size - 1) {
+                    delay(250L)
                 }
-            }.awaitAll()
+            }
 
+            _currentTestingPanelId.value = null
             _isTestingAllDiagnostics.value = false
         }
     }

@@ -182,6 +182,18 @@
     <string name="diag_user_permissions">User Account &amp; Server Count</string>
     <string name="diag_status_testing">Testing in progress…</string>
     <string name="diag_run_test">Run Diagnostics</string>
+    <string name="diag_status_all_healthy">All Connections Healthy</string>
+    <string name="diag_status_all_healthy_desc">All %1$d panel(s) are online with valid Client API tokens and accessible game servers.</string>
+    <string name="diag_status_issues_found">Connection Issues Detected</string>
+    <string name="diag_status_issues_desc">%1$d of %2$d panel(s) encountered connectivity or authentication errors.</string>
+    <string name="diag_run_all_test">Re-run All Diagnostics</string>
+    <string name="diag_checking_panel">Checking panel %1$d of %2$d: %3$s</string>
+    <string name="diag_summary_panels">Panels Checked</string>
+    <string name="diag_summary_tokens">Valid Tokens</string>
+    <string name="diag_summary_latency">Avg Latency</string>
+    <string name="diag_summary_servers">Game Servers</string>
+    <string name="diag_no_panels">No saved panels configured yet. Add your Pterodactyl panel to test connection.</string>
+    <string name="diag_add_panel">Add Panel</string>
 
     <!-- Alerts & Notifications -->
     <string name="section_alerts">Alerts &amp; Notifications</string>
