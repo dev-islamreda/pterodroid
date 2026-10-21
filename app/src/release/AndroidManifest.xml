@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- Starts the updater when the app process starts (no MainActivity changes needed) -->
+        <provider
+            android:name="com.example.ota.OtaInitProvider"
+            android:authorities="${applicationId}.ota-init"
+            android:exported="false"
+            android:initOrder="100" />
+
+        <!-- Lets the system installer read the downloaded APK -->
+        <provider
+            android:name="com.example.ota.OtaFileProvider"
+            android:authorities="${applicationId}.ota-files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ota_file_paths" />
+        </provider>
+    </application>
+</manifest>
