@@ -1,6 +1,0 @@
-{
-  "name": "Pterodroid",
-  "description": "Next-gen mobile management client for Pterodactyl game servers with real-time websocket console, server diagnostics, file and backup manager, and AI log analysis.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
