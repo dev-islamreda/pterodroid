@@ -346,5 +346,18 @@ data class ConnectionDiagnostic(
     val tokenValid: Boolean? = null,
     val serverCount: Int? = null,
     val errorMessage: String? = null,
-    val isTesting: Boolean = false
-)
+    val isTesting: Boolean = false,
+    val testedAtTimestamp: Long = System.currentTimeMillis()
+) {
+    val isHealthy: Boolean
+        get() = panelReachable == true && tokenValid == true && errorMessage.isNullOrBlank()
+
+    val latencyRating: String
+        get() = when {
+            latencyMs == null -> "Failed"
+            latencyMs < 150 -> "Optimal"
+            latencyMs < 400 -> "Good"
+            else -> "High"
+        }
+}
+

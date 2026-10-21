@@ -529,10 +529,7 @@ fun SettingsScreen(
                     tintColor = MaterialTheme.colorScheme.secondary,
                     testTag = "btn_nav_diagnostics",
                     onClick = {
-                        val firstPanel = allPanels.firstOrNull()
-                        if (firstPanel != null) {
-                            viewModel.runDiagnosticsOnly(firstPanel.panelUrl, firstPanel.apiToken, firstPanel.id)
-                        }
+                        viewModel.runAllDiagnostics()
                         viewModel.navigateTo(ScreenDestination.DIAGNOSTICS)
                     }
                 )

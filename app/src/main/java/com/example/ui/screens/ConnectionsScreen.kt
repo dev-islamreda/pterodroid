@@ -177,7 +177,7 @@ fun ConnectionsScreen(
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             IconButton(
                                                 onClick = {
-                                                    viewModel.runDiagnosticsOnly(panel.panelUrl, panel.apiToken, panel.id)
+                                                    viewModel.runAllDiagnostics()
                                                     viewModel.navigateTo(com.example.ui.ScreenDestination.DIAGNOSTICS)
                                                 },
                                                 modifier = Modifier.size(34.dp).testTag("diagnostics_panel_${panel.id}")

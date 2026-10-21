@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -117,6 +118,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _panelServersMap = MutableStateFlow<Map<String, UiState<List<ServerItem>>>>(emptyMap())
     val panelServersMap: StateFlow<Map<String, UiState<List<ServerItem>>>> = _panelServersMap.asStateFlow()
 
+    private val _isRefreshingServers = MutableStateFlow(false)
+    val isRefreshingServers: StateFlow<Boolean> = _isRefreshingServers.asStateFlow()
+
     // Aggregated list of all successfully loaded servers from all panels
     private val _allServers = MutableStateFlow<List<ServerItem>>(emptyList())
     val allServers: StateFlow<List<ServerItem>> = _allServers.asStateFlow()
@@ -130,6 +134,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _diagnosticState = MutableStateFlow<ConnectionDiagnostic?>(null)
     val diagnosticState: StateFlow<ConnectionDiagnostic?> = _diagnosticState.asStateFlow()
+
+    // Map of panelId -> ConnectionDiagnostic for all connected panels
+    private val _allPanelsDiagnostics = MutableStateFlow<Map<String, ConnectionDiagnostic>>(emptyMap())
+    val allPanelsDiagnostics: StateFlow<Map<String, ConnectionDiagnostic>> = _allPanelsDiagnostics.asStateFlow()
+
+    private val _isTestingAllDiagnostics = MutableStateFlow(false)
+    val isTestingAllDiagnostics: StateFlow<Boolean> = _isTestingAllDiagnostics.asStateFlow()
 
     private val _showAccountSettings = MutableStateFlow(false)
     val showAccountSettings: StateFlow<Boolean> = _showAccountSettings.asStateFlow()
@@ -474,6 +485,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun refreshAllServers() {
+        if (_isRefreshingServers.value) return
+        _isRefreshingServers.value = true
+        viewModelScope.launch {
+            try {
+                val minDelay = async { kotlinx.coroutines.delay(600L) }
+                loadAllPanelsServers()
+                minDelay.await()
+            } finally {
+                _isRefreshingServers.value = false
+            }
+        }
+    }
+
     fun loadAllPanelsServers() {
         val panels = allPanels.value
         if (panels.isEmpty()) {
@@ -700,16 +725,83 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun runAllDiagnostics() {
+        val panels = allPanels.value
+        if (panels.isEmpty()) {
+            _allPanelsDiagnostics.value = emptyMap()
+            _isTestingAllDiagnostics.value = false
+            return
+        }
+
+        viewModelScope.launch {
+            _isTestingAllDiagnostics.value = true
+            val initial = panels.associate { panel ->
+                panel.id to ConnectionDiagnostic(
+                    panelId = panel.id,
+                    panelUrl = panel.panelUrl,
+                    urlValid = true,
+                    isTesting = true
+                )
+            }
+            _allPanelsDiagnostics.value = initial
+            _diagnosticState.value = initial.values.firstOrNull()
+
+            panels.map { panel ->
+                async {
+                    val result = repository.runDiagnostics(panel.panelUrl, panel.apiToken, panel.id)
+                    _allPanelsDiagnostics.update { current ->
+                        current + (panel.id to result)
+                    }
+                    if (_diagnosticState.value?.panelId == panel.id || _diagnosticState.value == null) {
+                        _diagnosticState.value = result
+                    }
+                    result
+                }
+            }.awaitAll()
+
+            _isTestingAllDiagnostics.value = false
+        }
+    }
+
+    fun runDiagnosticsForPanel(panelId: String) {
+        val panel = allPanels.value.firstOrNull { it.id == panelId } ?: return
+        viewModelScope.launch {
+            val testingDiag = ConnectionDiagnostic(
+                panelId = panel.id,
+                panelUrl = panel.panelUrl,
+                urlValid = true,
+                isTesting = true
+            )
+            _allPanelsDiagnostics.update { current ->
+                current + (panel.id to testingDiag)
+            }
+            val result = repository.runDiagnostics(panel.panelUrl, panel.apiToken, panel.id)
+            _allPanelsDiagnostics.update { current ->
+                current + (panel.id to result)
+            }
+            if (_diagnosticState.value?.panelId == panel.id) {
+                _diagnosticState.value = result
+            }
+        }
+    }
+
     fun runDiagnosticsOnly(url: String, token: String, panelId: String? = null) {
         viewModelScope.launch {
-            _diagnosticState.value = ConnectionDiagnostic(
+            val testingDiag = ConnectionDiagnostic(
                 panelId = panelId,
                 panelUrl = url,
                 urlValid = true,
                 isTesting = true
             )
+            _diagnosticState.value = testingDiag
+            if (panelId != null) {
+                _allPanelsDiagnostics.update { it + (panelId to testingDiag) }
+            }
             val result = repository.runDiagnostics(url, token, panelId)
             _diagnosticState.value = result
+            if (panelId != null) {
+                _allPanelsDiagnostics.update { it + (panelId to result) }
+            }
         }
     }
 

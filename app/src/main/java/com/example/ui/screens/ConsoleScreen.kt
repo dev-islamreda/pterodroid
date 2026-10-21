@@ -41,11 +41,14 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -53,6 +56,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -103,6 +109,7 @@ import com.example.ui.console.ConsoleViewModel
 import com.example.ui.console.GeminiAnalysisState
 import com.example.ui.console.TerminalLogFormatter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConsoleScreen(
     mainViewModel: MainViewModel,
@@ -118,6 +125,8 @@ fun ConsoleScreen(
     val listState = rememberLazyListState()
     val isSendingCommand by consoleViewModel.isSendingCommand.collectAsStateWithLifecycle()
     val powerActionState by consoleViewModel.powerActionState.collectAsStateWithLifecycle()
+    val isRefreshing by consoleViewModel.isRefreshing.collectAsStateWithLifecycle()
+    val pullToRefreshState = rememberPullToRefreshState()
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
     val imeBottomPx = WindowInsets.ime.getBottom(density)
@@ -239,35 +248,55 @@ fun ConsoleScreen(
                                 )
                             }
                     ) {
-                        if (logs.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.console_empty_output),
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 13.5.sp,
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier
-                                        .padding(horizontal = 24.dp)
-                                        .testTag("console_empty_text")
+                        PullToRefreshBox(
+                            isRefreshing = isRefreshing,
+                            onRefresh = { consoleViewModel.refresh() },
+                            state = pullToRefreshState,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("console_pull_to_refresh_box"),
+                            indicator = {
+                                PullToRefreshDefaults.Indicator(
+                                    state = pullToRefreshState,
+                                    isRefreshing = isRefreshing,
+                                    modifier = Modifier.align(Alignment.TopCenter),
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                        } else {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 18.dp, vertical = 14.dp),
-                                contentPadding = PaddingValues(bottom = 4.dp),
-                                verticalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                items(logs) { line ->
-                                    TerminalLine(line, isDark = isDark)
+                        ) {
+                            if (logs.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState()),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.console_empty_output),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontSize = 13.5.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier
+                                            .padding(horizontal = 24.dp)
+                                            .testTag("console_empty_text")
+                                    )
+                                }
+                            } else {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                                    contentPadding = PaddingValues(bottom = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    items(logs) { line ->
+                                        TerminalLine(line, isDark = isDark)
+                                    }
                                 }
                             }
                         }

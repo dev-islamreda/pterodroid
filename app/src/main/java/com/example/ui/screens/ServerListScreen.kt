@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -45,6 +47,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -79,6 +84,7 @@ import com.example.ui.components.StatusBadge
 import com.example.ui.theme.ExpressiveSerifFontFamily
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServerListScreen(
     viewModel: MainViewModel,
@@ -91,6 +97,8 @@ fun ServerListScreen(
     var selectedFilterPanelId by remember { mutableStateOf<String?>(null) }
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshingServers.collectAsStateWithLifecycle()
+    val pullToRefreshState = rememberPullToRefreshState()
 
     val visiblePanels = remember(panels, selectedFilterPanelId) {
         if (selectedFilterPanelId == null) panels
@@ -225,17 +233,40 @@ fun ServerListScreen(
                 }
             }
 
-            // Main Server List grouped by panel
-            if (panels.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Outlined.Dns,
-                    title = "No Panels Connected",
-                    description = "Connect your first Pterodactyl panel to monitor and control game servers.",
-                    actionText = "Add Panel",
-                    onAction = { viewModel.startAddingPanel() },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
+            // Main Server List grouped by panel with PullToRefreshBox
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.refreshAllServers() },
+                state = pullToRefreshState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("servers_pull_to_refresh_box"),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullToRefreshState,
+                        isRefreshing = isRefreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            ) {
+                if (panels.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        EmptyState(
+                            icon = Icons.Outlined.Dns,
+                            title = "No Panels Connected",
+                            description = "Connect your first Pterodactyl panel to monitor and control game servers.",
+                            actionText = "Add Panel",
+                            onAction = { viewModel.startAddingPanel() },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -336,6 +367,7 @@ fun ServerListScreen(
             }
         }
     }
+}
 }
 
 @Composable

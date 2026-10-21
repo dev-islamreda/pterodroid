@@ -17,13 +17,17 @@ import com.example.data.repository.PteroRepository
 import com.example.data.websocket.DaemonEvent
 import com.example.data.websocket.WsConnectionState
 import com.example.ui.UiState
+import com.example.ui.components.BubbleController
+import com.example.ui.components.BubbleType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -81,6 +85,9 @@ class ConsoleViewModel(
     private val _geminiState = MutableStateFlow<GeminiAnalysisState>(GeminiAnalysisState.Idle)
     val geminiState: StateFlow<GeminiAnalysisState> = _geminiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private var eventListenJob: Job? = null
     private var lastSentCommandTime = 0L
     private var lastSentCommandText = ""
@@ -109,6 +116,34 @@ class ConsoleViewModel(
     fun retryConnection() {
         appendLog("[SYSTEM] Reconnecting to server websocket…")
         repository.daemonWebsocket.retryConnection()
+    }
+
+    /**
+     * Manual pull-to-refresh:
+     * Re-acquires daemon websocket authorization and re-establishes the connection.
+     */
+    fun refresh() {
+        if (_isRefreshing.value) return
+        _isRefreshing.value = true
+        viewModelScope.launch {
+            try {
+                if (BubbleController.isOffline()) {
+                    BubbleController.show("You're offline. Check your internet connection.", BubbleType.OFFLINE)
+                    return@launch
+                }
+                val minDelay = async { kotlinx.coroutines.delay(600L) }
+                appendLog("[SYSTEM] Refreshing console connection…")
+                withContext(Dispatchers.IO) {
+                    val authData = repository.getWebsocketAuth(server.panelId, server.identifier)
+                    repository.connectServerWebsocket(server.panelId, server.identifier, authData)
+                }
+                minDelay.await()
+            } catch (e: Exception) {
+                appendLog("[SYSTEM] Refresh error: ${e.message}")
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 
     private fun listenToEvents() {
