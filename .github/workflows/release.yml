@@ -84,8 +84,14 @@ jobs:
           echo "KEY_SHA256=${KEY_SHA256}" >> "$GITHUB_ENV"
           echo "Keystore OK (alias: upload)"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # GitHub's runner already has the Android SDK. We only make sure the licenses are accepted
+      # (Gradle downloads any missing SDK part by itself).
+      - name: Accept Android SDK licenses
+        run: |
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | sort -V | tail -n 1)
+          [ -n "$SDKM" ] || { echo "::error::sdkmanager not found in $ANDROID_HOME"; exit 1; }
+          yes | "$SDKM" --licenses > /dev/null || true
+          echo "Android SDK licenses accepted"
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
